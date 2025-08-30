@@ -1,7 +1,7 @@
-local mode = TOOL.Mode -- Class name of the tool. (name of the .lua file) 
+local mode = TOOL.Mode -- Class name of the tool. (name of the .lua file)
 
 TOOL.Category		= "Construction"
-TOOL.Name			= "#Tool."..mode..".listname"
+TOOL.Name			= "#Tool." .. mode .. ".listname"
 TOOL.ConfigName		= ""
 TOOL.ClientConVar[ "col_group" ] = "0"
 TOOL.ClientConVar[ "remove_constr" ] = "1"
@@ -16,13 +16,13 @@ TOOL.Information = {
 
 
 if CLIENT then
-	local t = "tool."..mode.."."
-	language.Add( t.."listname",	"Collision Tool" )
-	language.Add( t.."name",		"Collision Tool" )
-	language.Add( t.."desc",		"Edit collision groups and create world no-collide constraints" )
-	language.Add( t.."left",		"Change the collision group" )
-	language.Add( t.."reload",		"Create or remove a no-collide constraint with the world" )
-	language.Add( t.."right",		"Copy the collision group" )
+	local t = "tool." .. mode .. "."
+	language.Add( t .. "listname",	"Collision Tool" )
+	language.Add( t .. "name",		"Collision Tool" )
+	language.Add( t .. "desc",		"Edit collision groups and create world no-collide constraints" )
+	language.Add( t .. "left",		"Change the collision group" )
+	language.Add( t .. "reload",		"Create or remove a no-collide constraint with the world" )
+	language.Add( t .. "right",		"Copy the collision group" )
 
 	colEnums = {
 		"COLLISION_GROUP_DEBRIS",
@@ -46,7 +46,13 @@ if CLIENT then
 		"COLLISION_GROUP_NPC_SCRIPTED",
 		"COLLISION_GROUP_WORLD"
 	}
-	colEnums[0] = "COLLISION_GROUP_NONE"
+	colEnums[0]		= "COLLISION_GROUP_NONE"
+	colEnums[22]	= "Unnamed - Antlion spitball"
+	colEnums[27]	= "Unnamed - NPC Birds"
+	colEnums[28]	= "Unnamed - NPC Headcrabs"
+	colEnums[29]	= "Unnamed - NPC Strider"
+	colEnums[30]	= "Unnamed - NPC Gunship"
+	colEnums[31]	= "Unnamed - NPC Antlions"
 
 end
 
@@ -59,7 +65,7 @@ local function getCustomTrace( ply, col_group )
 	tr.mins = vector_origin
 	tr.maxs = tr.mins
 	local trace = util.TraceLine( tr )
-	if ( !trace.Hit ) then trace = util.TraceHull( tr ) end
+	if not trace.Hit then trace = util.TraceHull( tr ) end
 	return trace
 
 end
@@ -67,13 +73,13 @@ end
 
 function TOOL:LeftClick( trace )
 
-	local ply = self:GetOwner()	
+	local ply = self:GetOwner()
 	local tcg = self:GetClientNumber( "trace_col_group" )
 	if tcg ~= 0 then trace = getCustomTrace( ply, tcg ) end
 
 	local ent = trace.Entity
-	
-	if IsValid( ent ) && ( ent:IsPlayer() ) then return false end
+
+	if IsValid( ent ) and ( ent:IsPlayer() ) then return false end
 	if ent:IsWorld() then return end
 	if not ent.SetCollisionGroup then return false end
 
@@ -82,16 +88,20 @@ function TOOL:LeftClick( trace )
 
 	if col_group == old_col_group then return true end
 
-	undo.Create( "Collision Group Change ("..(ent:GetModel() or "?")..")" )
-		undo.AddFunction(
-		function( undo, entity, group )
-			if not IsValid( entity ) then return false end
-			entity:SetCollisionGroup( group )
-		end,
-		ent, old_col_group
-		)
-		undo.SetPlayer( ply )
-	undo.Finish()
+	if SERVER then
+
+		undo.Create( "Collision Group Change (" .. (ent:GetModel() or "?") .. ")" )
+			undo.AddFunction(
+			function( _, entity, group )
+				if not IsValid( entity ) then return false end
+				entity:SetCollisionGroup( group )
+			end,
+			ent, old_col_group
+			)
+			undo.SetPlayer( ply )
+		undo.Finish()
+
+	end
 
 	ent:SetCollisionGroup( col_group )
 
@@ -112,7 +122,7 @@ function TOOL:RightClick( trace )
 	local col_group = ent:GetCollisionGroup()
 	if not col_group then return false end
 
-	local cVarName = mode.."_col_group"
+	local cVarName = mode .. "_col_group"
 
 	if ( CLIENT or game.SinglePlayer() ) and col_group ~= GetConVar( cVarName ):GetInt() then
 		self:GetOwner():EmitSound( "garrysmod/content_downloaded.wav", 75, 100 )
@@ -129,28 +139,26 @@ function TOOL:Reload( trace )
 
 	if not IsValid( ent ) then return false end
 
-	local noCollideTable = constraint.FindConstraints( ent, "NoCollide" )
-	local worldEnt = game.GetWorld()
-	local isLocal = CLIENT or game.SinglePlayer()
+	if CLIENT then return true end
 
-	for index, constr in ipairs(noCollideTable) do
+	local removeConstr = self:GetClientBool( "remove_constr" )
+	local worldEnt = game.GetWorld()
+	local noCollideTable = constraint.FindConstraints( ent, "NoCollide" )
+
+	for index, constr in ipairs( noCollideTable ) do
 
 		if constr.Ent1 == worldEnt or constr.Ent2 == worldEnt then
 
-			local removeConstr = self:GetClientBool( "remove_constr" )
 			if removeConstr then constr.Constraint:Remove() end
 
-			if isLocal then
-				local sndName = removeConstr and "buttons/button16.wav"or "buttons/lightswitch2.wav"
-				self:GetOwner():EmitSound( sndName )
-			end
+			local sndName = removeConstr and "buttons/button16.wav" or "buttons/lightswitch2.wav"
+			self:GetOwner():EmitSound( sndName ) -- needs recipient filter
 
 			return removeConstr
-		
+
 		end
 
 	end
-
 
 	if SERVER then
 
@@ -159,7 +167,7 @@ function TOOL:Reload( trace )
 		if not ply:CheckLimit( "constraints" ) then return false end
 
 		local constr = constraint.NoCollide( worldEnt, ent, 0, trace.PhysicsBone or 0, true )
-		if ( IsValid( constr ) ) then
+		if IsValid( constr ) then
 
 			undo.Create( "No Collide (World)" )
 				undo.AddEntity( constr )
@@ -170,13 +178,11 @@ function TOOL:Reload( trace )
 			ply:AddCount( "constraints", constr )
 			ply:AddCleanup( "constraints", constr )
 
+			ply:EmitSound( "buttons/button14.wav" )
+
 		end
-	
+
 	end
-
-
-
-	if isLocal then self:GetOwner():EmitSound( "buttons/button14.wav" ) end
 
 	return true
 
@@ -196,27 +202,27 @@ if CLIENT then
 
 		if not ( ent:IsValid() or ent:IsWorld() ) then return end
 
-		local vecmin, vecmax = ent:WorldSpaceAABB()
+		local _, vecmax = ent:WorldSpaceAABB()
 		local pos = ent:WorldSpaceCenter()
 		pos.z = vecmax.z
-		local pos = pos:ToScreen()
+		pos = pos:ToScreen()
 		local x, y = pos.x, pos.y
-		
+
 		local col_group = ent:GetCollisionGroup()
-		local col2	= HSVToColor( 50 + 16*col_group, 0.5, 1 )
-		local bgcol = HSVToColor( 50 + 16*col_group, 1, 0.1 )
+		local col2	= HSVToColor( 50 + 16 * col_group, 0.5, 1 )
+		local bgcol = HSVToColor( 50 + 16 * col_group, 1, 0.1 )
 		bgcol.a = 220
 		local font  = "GModWorldtip"
 		local rad   = 8
-		
+
 		local text = ( "%s (%s)" ):format( colEnums[ col_group ], col_group )
-		
+
 		surface.SetFont( font )
 		local tw, th = surface.GetTextSize( text )
 
 		y = y - th
-		
-		draw.RoundedBox( rad, x - tw/2 - 10, y - th/2 - 2, tw + 20, th + 4, bgcol )
+
+		draw.RoundedBox( rad, x - tw / 2 - 10, y - th / 2 - 2, tw + 20, th + 4, bgcol )
 		draw.SimpleText( text, font, x, y, col2, 1, 1 )
 	end
 end
@@ -225,7 +231,7 @@ end
 local cvarlist = TOOL:BuildConVarList()
 
 function TOOL.BuildCPanel( cPanel )
-	
+
 	local color_blue = Color( 50, 100, 200 )
 	local color_green = Color( 35, 155, 100 )
 	local color_gray = Color( 240, 240, 240 )
@@ -237,21 +243,21 @@ function TOOL.BuildCPanel( cPanel )
 		draw.RoundedBoxEx( 8, 0, topHeight, w, h - topHeight + 5, bgcol, false, false, true, true )
 	end
 
-	cPanel:Help( "#tool."..mode..".desc" )
+	cPanel:Help( "#tool." .. mode .. ".desc" )
 
 	cPanel:ToolPresets( mode, cvarlist )
 
-	local cgComboBox, label = cPanel:ComboBox( "Collision Group:", mode.."_col_group" )
+	local cgComboBox, label = cPanel:ComboBox( "Collision Group:", mode .. "_col_group" )
 		cgComboBox:SetSortItems( false )
 		cgComboBox:Dock( TOP )
 		cgComboBox:DockMargin( 0, 20, 0, 0 )
 		label:DockMargin( 0, 20, 0, 0 )
 		for data, value in pairs( colEnums ) do
-			cgComboBox:AddChoice( data..": "..value, data )
+			cgComboBox:AddChoice( data .. ": " .. value, data )
 		end
 		cPanel:ControlHelp( "The collision group to apply to the entity.\n" )
 
-	local checkBox = cPanel:CheckBox( "Remove world no-collide on reload", mode.."_remove_constr" )
+	cPanel:CheckBox( "Remove world no-collide on reload", mode .. "_remove_constr" )
 		cPanel:ControlHelp( "Remove any no-collide constraint that the entity has with the world on reload.\n" )
 
 	local expForm = vgui.Create( "DForm", cPanel )
@@ -264,14 +270,14 @@ function TOOL.BuildCPanel( cPanel )
 			paint( self, w, h, color_blue, color_gray )
 		end
 
-		local tcgComboBox = expForm:ComboBox( "Trace C. Group:", mode.."_trace_col_group" )
+		local tcgComboBox = expForm:ComboBox( "Trace C. Group:", mode .. "_trace_col_group" )
 			tcgComboBox:SetSortItems( false )
 			tcgComboBox:Dock( TOP )
 			for k, group in ipairs( { 0, 7, 9 } ) do
-				tcgComboBox:AddChoice( group..": "..colEnums[group], group )
+				tcgComboBox:AddChoice( group .. ": " .. colEnums[group], group )
 			end
 			expForm:ControlHelp( "\nThe collision group that the tool's trace uses. Useful if the unmodified trace doesn't detect a specific collision group.\n- Group 7 (Vehicle) can hit group 12 (Vehicle Clip)\n- Group 9 (NPC) can hit group 14 (Door Blocker)" )
-		
+
 	local helpForm = vgui.Create( "DForm", cPanel )
 		cPanel:AddItem( helpForm )
 		helpForm:SetExpanded( true )
@@ -288,15 +294,15 @@ function TOOL.BuildCPanel( cPanel )
 
 			valveButton:SetImage( "games/16/hl2.png" )
 			fpButton:SetImage( "games/16/garrysmod.png" )
-			
+
 			function valveButton:DoClick() gui.OpenURL( "https://developer.valvesoftware.com/wiki/Collision_groups" ) end
 			function fpButton:DoClick() gui.OpenURL( "https://wiki.facepunch.com/gmod/Enums/COLLISION_GROUP" ) end
 
 			helpForm:AddItem( valveButton )
 			helpForm:AddItem( fpButton )
-	
-		local tooltipCheckBox = helpForm:CheckBox( "Enable Tooltips", mode.."_tooltip_enabled" )
-			tooltipCheckBox:SetToolTip( "Show a tooltip when pointing something with the tool." )
+
+		local tooltipCheckBox = helpForm:CheckBox( "Enable Tooltips", mode .. "_tooltip_enabled" )
+			tooltipCheckBox:SetTooltip( "Show a tooltip when pointing something with the tool." )
 
 
 end
