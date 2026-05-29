@@ -21,7 +21,7 @@ if CLIENT then
 	language.Add( t .. "name",		"Collision Tool" )
 	language.Add( t .. "desc",		"Edit collision groups and create world no-collide constraints" )
 	language.Add( t .. "left",		"Change the collision group" )
-	language.Add( t .. "reload",		"Create or remove a no-collide constraint with the world" )
+	language.Add( t .. "reload",	"Create or remove a no-collide constraint with the world" )
 	language.Add( t .. "right",		"Copy the collision group" )
 
 	colEnums = {
