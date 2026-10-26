@@ -67,16 +67,43 @@ if CLIENT then
 
 end
 
-
+local hacking = false
 local function getCustomTrace( ply, col_group )
 
 	local tr = util.GetPlayerTrace( ply )
-	tr.mask = bit.bor( CONTENTS_SOLID, CONTENTS_MOVEABLE, CONTENTS_MONSTER, CONTENTS_WINDOW, CONTENTS_DEBRIS, CONTENTS_GRATE, CONTENTS_AUX )
+	tr.mask = MASK_ALL
 	tr.collisiongroup = col_group or 0
 	tr.mins = vector_origin
 	tr.maxs = tr.mins
 	local trace = util.TraceLine( tr )
 	if not trace.Hit then trace = util.TraceHull( tr ) end
+
+	if hacking then return trace end
+
+	if trace.Hit then
+		local hitent = trace.Entity
+		local LAEnt2 = ents.FindAlongRay(trace.StartPos, trace.HitPos)
+		for _, LAEnt in ipairs(LAEnt2) do
+			if LAEnt == hitent then continue end
+
+			local class = LAEnt:GetClass()
+        	if LAEnt:IsWeapon() or LAEnt:IsPlayer() or class == "viewmodel" then continue end
+
+			local col = LAEnt:GetCollisionGroup()
+
+			LAEnt:SetCollisionGroup(0)
+
+			hacking = true
+				trace = getCustomTrace( ply, col_group )
+				if LAEnt ~= hitent then
+					trace.Special = true
+				end
+			hacking = false
+
+			LAEnt:SetCollisionGroup(col)
+		end
+	end
+
 	return trace
 
 end
@@ -86,7 +113,9 @@ function TOOL:LeftClick( trace )
 
 	local ply = self:GetOwner()
 	local tcg = self:GetClientNumber( "trace_col_group" )
-	if tcg ~= 0 then trace = getCustomTrace( ply, tcg ) end
+	for i,v in pairs(getCustomTrace( ply, tcg )) do
+		trace[i] = v
+	end
 
 	local ent = trace.Entity
 
@@ -126,6 +155,10 @@ end
 
 function TOOL:RightClick( trace )
 
+	local tcg = self:GetClientNumber( "trace_col_group" )
+	for i,v in pairs(getCustomTrace( ply, tcg )) do
+		trace[i] = v
+	end
 	local ent = trace.Entity
 
 	if not ent.GetCollisionGroup then return false end
@@ -145,6 +178,11 @@ function TOOL:RightClick( trace )
 end
 
 function TOOL:Reload( trace )
+
+	local tcg = self:GetClientNumber( "trace_col_group" )
+	for i,v in pairs(getCustomTrace( ply, tcg )) do
+		trace[i] = v
+	end
 
 	local ent = trace.Entity
 
@@ -227,6 +265,7 @@ if CLIENT then
 		local rad   = 8
 
 		local text = ( "%s (%s)" ):format( colEnums[ col_group ], col_group )
+		if trace.Special then text = "#" .. text end
 
 		surface.SetFont( font )
 		local tw, th = surface.GetTextSize( text )
