@@ -1,358 +1,284 @@
 local mode = TOOL.Mode -- Class name of the tool. (name of the .lua file)
-
-TOOL.Category		= "Construction"
-TOOL.Name			= "#Tool." .. mode .. ".listname"
-TOOL.ConfigName		= ""
-TOOL.ClientConVar[ "col_group" ] = "0"
-TOOL.ClientConVar[ "remove_constr" ] = "1"
-TOOL.ClientConVar[ "trace_col_group" ] = "0"
-TOOL.ClientConVar[ "tooltip_enabled" ] = "1"
-
+TOOL.Category = "Construction"
+TOOL.Name = "#Tool." .. mode .. ".listname"
+TOOL.ConfigName = ""
+TOOL.ClientConVar["col_group"] = "0"
+TOOL.ClientConVar["remove_constr"] = "1"
+TOOL.ClientConVar["trace_col_group"] = "0"
+TOOL.ClientConVar["tooltip_enabled"] = "1"
 TOOL.Information = {
-	{ name = "left" },
-	{ name = "right" },
-	{ name = "reload" },
+    {
+        name = "left"
+    },
+    {
+        name = "right"
+    },
+    {
+        name = "reload"
+    },
 }
 
+local colEnums = {
+    "COLLISION_GROUP_DEBRIS",
+    "COLLISION_GROUP_DEBRIS_TRIGGER",
+    "COLLISION_GROUP_INTERACTIVE_DEBRIS",
+    "COLLISION_GROUP_INTERACTIVE",
+    "COLLISION_GROUP_PLAYER",
+    "COLLISION_GROUP_BREAKABLE_GLASS",
+    "COLLISION_GROUP_VEHICLE",
+    "COLLISION_GROUP_PLAYER_MOVEMENT",
+    "COLLISION_GROUP_NPC",
+    "COLLISION_GROUP_IN_VEHICLE",
+    "COLLISION_GROUP_WEAPON",
+    "COLLISION_GROUP_VEHICLE_CLIP",
+    "COLLISION_GROUP_PROJECTILE",
+    "COLLISION_GROUP_DOOR_BLOCKER",
+    "COLLISION_GROUP_PASSABLE_DOOR",
+    "COLLISION_GROUP_DISSOLVING",
+    "COLLISION_GROUP_PUSHAWAY",
+    "COLLISION_GROUP_NPC_ACTOR",
+    "COLLISION_GROUP_NPC_SCRIPTED",
+    "COLLISION_GROUP_WORLD",
+    "HL2COLLISION_GROUP_PLASMANODE", -- = LAST_SHARED_COLLISION_GROUP,
+    "HL2COLLISION_GROUP_SPIT",
+    "HL2COLLISION_GROUP_HOMING_MISSILE",
+    "HL2COLLISION_GROUP_COMBINE_BALL",
+    "HL2COLLISION_GROUP_FIRST_NPC",
+    "HL2COLLISION_GROUP_HOUNDEYE",
+    "HL2COLLISION_GROUP_CROW",
+    "HL2COLLISION_GROUP_HEADCRAB",
+    "HL2COLLISION_GROUP_STRIDER",
+    "HL2COLLISION_GROUP_GUNSHIP",
+    "HL2COLLISION_GROUP_ANTLION",
+    "HL2COLLISION_GROUP_LAST_NPC",
+    "HL2COLLISION_GROUP_COMBINE_BALL_NPC",
+}
 
+colEnums[0] = "COLLISION_GROUP_NONE"
 if CLIENT then
-	local t = "tool." .. mode .. "."
-	language.Add( t .. "listname",	"Collision Tool" )
-	language.Add( t .. "name",		"Collision Tool" )
-	language.Add( t .. "desc",		"Edit collision groups and create world no-collide constraints" )
-	language.Add( t .. "left",		"Change the collision group" )
-	language.Add( t .. "reload",	"Create or remove a no-collide constraint with the world" )
-	language.Add( t .. "right",		"Copy the collision group" )
-
-	colEnums = {
-		"COLLISION_GROUP_DEBRIS",
-		"COLLISION_GROUP_DEBRIS_TRIGGER",
-		"COLLISION_GROUP_INTERACTIVE_DEBRIS",
-		"COLLISION_GROUP_INTERACTIVE",
-		"COLLISION_GROUP_PLAYER",
-		"COLLISION_GROUP_BREAKABLE_GLASS",
-		"COLLISION_GROUP_VEHICLE",
-		"COLLISION_GROUP_PLAYER_MOVEMENT",
-		"COLLISION_GROUP_NPC",
-		"COLLISION_GROUP_IN_VEHICLE",
-		"COLLISION_GROUP_WEAPON",
-		"COLLISION_GROUP_VEHICLE_CLIP",
-		"COLLISION_GROUP_PROJECTILE",
-		"COLLISION_GROUP_DOOR_BLOCKER",
-		"COLLISION_GROUP_PASSABLE_DOOR",
-		"COLLISION_GROUP_DISSOLVING",
-		"COLLISION_GROUP_PUSHAWAY",
-		"COLLISION_GROUP_NPC_ACTOR",
-		"COLLISION_GROUP_NPC_SCRIPTED",
-		"COLLISION_GROUP_WORLD",
-
-		"HL2COLLISION_GROUP_PLASMANODE",-- = LAST_SHARED_COLLISION_GROUP,
-		"HL2COLLISION_GROUP_SPIT",
-		"HL2COLLISION_GROUP_HOMING_MISSILE",
-		"HL2COLLISION_GROUP_COMBINE_BALL",
-
-		"HL2COLLISION_GROUP_FIRST_NPC",
-		"HL2COLLISION_GROUP_HOUNDEYE",
-		"HL2COLLISION_GROUP_CROW",
-		"HL2COLLISION_GROUP_HEADCRAB",
-		"HL2COLLISION_GROUP_STRIDER",
-		"HL2COLLISION_GROUP_GUNSHIP",
-		"HL2COLLISION_GROUP_ANTLION",
-		"HL2COLLISION_GROUP_LAST_NPC",
-		"HL2COLLISION_GROUP_COMBINE_BALL_NPC",
-
-	}
-
-	colEnums[0]		= "COLLISION_GROUP_NONE"
-
+    local t = "tool." .. mode .. "."
+    language.Add(t .. "listname", "Collision Tool")
+    language.Add(t .. "name", "Collision Tool")
+    language.Add(t .. "desc", "Edit collision groups and create world no-collide constraints")
+    language.Add(t .. "left", "Change the collision group")
+    language.Add(t .. "reload", "Create or remove a no-collide constraint with the world")
+    language.Add(t .. "right", "Copy the collision group")
 end
 
 local hacking = false
-local function getCustomTrace( ply, col_group )
-
-	local tr = util.GetPlayerTrace( ply )
-	tr.mask = MASK_ALL
-	tr.collisiongroup = col_group or 0
-	tr.mins = vector_origin
-	tr.maxs = tr.mins
-	local trace = util.TraceLine( tr )
-	if not trace.Hit then trace = util.TraceHull( tr ) end
-
-	if hacking then return trace end
-
-	if trace.Hit then
-		local hitent = trace.Entity
-		local LAEnt2 = ents.FindAlongRay(trace.StartPos, trace.HitPos)
-		for _, LAEnt in ipairs(LAEnt2) do
-			if LAEnt == hitent then continue end
-
-			local class = LAEnt:GetClass()
-        	if LAEnt:IsWeapon() or LAEnt:IsPlayer() or class == "viewmodel" then continue end
-
-			local col = LAEnt:GetCollisionGroup()
-
-			LAEnt:SetCollisionGroup(0)
-
-			hacking = true
-				trace = getCustomTrace( ply, col_group )
-				if LAEnt ~= hitent then
-					trace.Special = true
-				end
-			hacking = false
-
-			LAEnt:SetCollisionGroup(col)
-		end
-	end
-
-	return trace
-
+local function getCustomTrace(ply, col_group)
+    local tr = util.GetPlayerTrace(ply)
+    tr.mask = MASK_ALL
+    tr.collisiongroup = col_group or 0
+    tr.mins = vector_origin
+    tr.maxs = tr.mins
+    local trace = util.TraceLine(tr)
+    if not trace.Hit then trace = util.TraceHull(tr) end
+    if hacking then return trace end
+    if trace.Hit then
+        local hitent = trace.Entity
+        local LAEnt2 = ents.FindAlongRay(trace.StartPos, trace.HitPos)
+        for _, LAEnt in ipairs(LAEnt2) do
+            if LAEnt == hitent then continue end
+            local class = LAEnt:GetClass()
+            if LAEnt:IsWeapon() or LAEnt:IsPlayer() or class == "viewmodel" then continue end
+            local col = LAEnt:GetCollisionGroup()
+            LAEnt:SetCollisionGroup(0)
+            hacking = true
+            trace = getCustomTrace(ply, col_group)
+            if LAEnt ~= hitent then trace.Special = true end
+            hacking = false
+            LAEnt:SetCollisionGroup(col)
+        end
+    end
+    return trace
 end
 
+function TOOL:LeftClick(trace)
+    local ply = self:GetOwner()
+    local tcg = self:GetClientNumber("trace_col_group")
+    for i, v in pairs(getCustomTrace(ply, tcg)) do
+        trace[i] = v
+    end
 
-function TOOL:LeftClick( trace )
+    local ent = trace.Entity
+    if IsValid(ent) and ent:IsPlayer() then return false end
+    if ent:IsWorld() then return end
+    if not ent.SetCollisionGroup then return false end
+    local col_group = self:GetClientNumber("col_group")
+    local old_col_group = ent:GetCollisionGroup()
+    if col_group == old_col_group then return true end
+    if SERVER then
+        undo.Create("Collision Group Change (" .. (ent:GetModel() or "?") .. ")")
+        undo.AddFunction(function(_, entity, group)
+            if not IsValid(entity) then return false end
+            entity:SetCollisionGroup(group)
+        end, ent, old_col_group)
 
-	local ply = self:GetOwner()
-	local tcg = self:GetClientNumber( "trace_col_group" )
-	for i,v in pairs(getCustomTrace( ply, tcg )) do
-		trace[i] = v
-	end
+        undo.SetPlayer(ply)
+        undo.Finish()
+    end
 
-	local ent = trace.Entity
-
-	if IsValid( ent ) and ( ent:IsPlayer() ) then return false end
-	if ent:IsWorld() then return end
-	if not ent.SetCollisionGroup then return false end
-
-	local col_group		= self:GetClientNumber( "col_group" )
-	local old_col_group = ent:GetCollisionGroup()
-
-	if col_group == old_col_group then return true end
-
-	if SERVER then
-
-		undo.Create( "Collision Group Change (" .. (ent:GetModel() or "?") .. ")" )
-			undo.AddFunction(
-			function( _, entity, group )
-				if not IsValid( entity ) then return false end
-				entity:SetCollisionGroup( group )
-			end,
-			ent, old_col_group
-			)
-			undo.SetPlayer( ply )
-		undo.Finish()
-
-	end
-
-	ent:SetCollisionGroup( col_group )
-
-	if CLIENT or game.SinglePlayer() then
-		ply:EmitSound( "buttons/button9.wav" )
-	end
-
-	return true
-
+    ent:SetCollisionGroup(col_group)
+    if CLIENT or game.SinglePlayer() then ply:EmitSound("buttons/button9.wav") end
+    return true
 end
 
-function TOOL:RightClick( trace )
+function TOOL:RightClick(trace)
+    local tcg = self:GetClientNumber("trace_col_group")
+    for i, v in pairs(getCustomTrace(ply, tcg)) do
+        trace[i] = v
+    end
 
-	local tcg = self:GetClientNumber( "trace_col_group" )
-	for i,v in pairs(getCustomTrace( ply, tcg )) do
-		trace[i] = v
-	end
-	local ent = trace.Entity
-
-	if not ent.GetCollisionGroup then return false end
-
-	local col_group = ent:GetCollisionGroup()
-	if not col_group then return false end
-
-	local cVarName = mode .. "_col_group"
-
-	if ( CLIENT or game.SinglePlayer() ) and col_group ~= GetConVar( cVarName ):GetInt() then
-		self:GetOwner():EmitSound( "garrysmod/content_downloaded.wav", 75, 100 )
-		RunConsoleCommand( cVarName, col_group )
-	end
-
-	return true
-
+    local ent = trace.Entity
+    if not ent.GetCollisionGroup then return false end
+    local col_group = ent:GetCollisionGroup()
+    if not col_group then return false end
+    local cVarName = mode .. "_col_group"
+    if (CLIENT or game.SinglePlayer()) and col_group ~= GetConVar(cVarName):GetInt() then
+        self:GetOwner():EmitSound("garrysmod/content_downloaded.wav", 75, 100)
+        RunConsoleCommand(cVarName, col_group)
+    end
+    return true
 end
 
-function TOOL:Reload( trace )
+function TOOL:Reload(trace)
+    local tcg = self:GetClientNumber("trace_col_group")
+    for i, v in pairs(getCustomTrace(ply, tcg)) do
+        trace[i] = v
+    end
 
-	local tcg = self:GetClientNumber( "trace_col_group" )
-	for i,v in pairs(getCustomTrace( ply, tcg )) do
-		trace[i] = v
-	end
+    local ent = trace.Entity
+    if not IsValid(ent) then return false end
+    if CLIENT then return true end
+    local removeConstr = self:GetClientBool("remove_constr")
+    local worldEnt = game.GetWorld()
+    local noCollideTable = constraint.FindConstraints(ent, "NoCollide")
+    for index, constr in ipairs(noCollideTable) do
+        if constr.Ent1 == worldEnt or constr.Ent2 == worldEnt then
+            if removeConstr then constr.Constraint:Remove() end
+            local sndName = removeConstr and "buttons/button16.wav" or "buttons/lightswitch2.wav"
+            self:GetOwner():EmitSound(sndName) -- needs recipient filter
+            return removeConstr
+        end
+    end
 
-	local ent = trace.Entity
-
-	if not IsValid( ent ) then return false end
-
-	if CLIENT then return true end
-
-	local removeConstr = self:GetClientBool( "remove_constr" )
-	local worldEnt = game.GetWorld()
-	local noCollideTable = constraint.FindConstraints( ent, "NoCollide" )
-
-	for index, constr in ipairs( noCollideTable ) do
-
-		if constr.Ent1 == worldEnt or constr.Ent2 == worldEnt then
-
-			if removeConstr then constr.Constraint:Remove() end
-
-			local sndName = removeConstr and "buttons/button16.wav" or "buttons/lightswitch2.wav"
-			self:GetOwner():EmitSound( sndName ) -- needs recipient filter
-
-			return removeConstr
-
-		end
-
-	end
-
-	if SERVER then
-
-		local ply = self:GetOwner()
-
-		if not ply:CheckLimit( "constraints" ) then return false end
-
-		local constr = constraint.NoCollide( worldEnt, ent, 0, trace.PhysicsBone or 0, true )
-		if IsValid( constr ) then
-
-			undo.Create( "No Collide (World)" )
-				undo.AddEntity( constr )
-				undo.SetPlayer( ply )
-				undo.SetCustomUndoText( "Undone #tool.nocollide.name" )
-			undo.Finish( "#tool.nocollide.name" )
-
-			ply:AddCount( "constraints", constr )
-			ply:AddCleanup( "constraints", constr )
-
-			ply:EmitSound( "buttons/button14.wav" )
-
-		end
-
-	end
-
-	return true
-
+    if SERVER then
+        local ply = self:GetOwner()
+        if not ply:CheckLimit("constraints") then return false end
+        local constr = constraint.NoCollide(worldEnt, ent, 0, trace.PhysicsBone or 0, true)
+        if IsValid(constr) then
+            undo.Create("No Collide (World)")
+            undo.AddEntity(constr)
+            undo.SetPlayer(ply)
+            undo.SetCustomUndoText("Undone #tool.nocollide.name")
+            undo.Finish("#tool.nocollide.name")
+            ply:AddCount("constraints", constr)
+            ply:AddCleanup("constraints", constr)
+            ply:EmitSound("buttons/button14.wav")
+        end
+    end
+    return true
 end
-
 
 if CLIENT then
-	function TOOL:DrawHUD()
-
-		if not self:GetClientBool( "tooltip_enabled" ) then return end
-
-		local ply = self:GetOwner()
-		local tcg = self:GetClientNumber( "trace_col_group" )
-
-		local trace = getCustomTrace( ply, tcg ) -- custom trace mostly detects more entities than player's eye trace
-		local ent = trace.Entity
-
-		if not ( ent:IsValid() or ent:IsWorld() ) then return end
-
-		local _, vecmax = ent:WorldSpaceAABB()
-		local pos = ent:WorldSpaceCenter()
-		pos.z = vecmax.z
-		pos = pos:ToScreen()
-		local x, y = pos.x, pos.y
-
-		local col_group = ent:GetCollisionGroup()
-		local col2	= HSVToColor( 50 + 16 * col_group, 0.5, 1 )
-		local bgcol = HSVToColor( 50 + 16 * col_group, 1, 0.1 )
-		bgcol.a = 220
-		local font  = "GModWorldtip"
-		local rad   = 8
-
-		local text = ( "%s (%s)" ):format( colEnums[ col_group ], col_group )
-		if trace.Special then text = "#" .. text end
-
-		surface.SetFont( font )
-		local tw, th = surface.GetTextSize( text )
-
-		y = y - th
-
-		draw.RoundedBox( rad, x - tw / 2 - 10, y - th / 2 - 2, tw + 20, th + 4, bgcol )
-		draw.SimpleText( text, font, x, y, col2, 1, 1 )
-	end
+    function TOOL:DrawHUD()
+        if not self:GetClientBool("tooltip_enabled") then return end
+        local ply = self:GetOwner()
+        local tcg = self:GetClientNumber("trace_col_group")
+        local trace = getCustomTrace(ply, tcg) -- custom trace mostly detects more entities than player's eye trace
+        local ent = trace.Entity
+        if not (ent:IsValid() or ent:IsWorld()) then return end
+        local _, vecmax = ent:WorldSpaceAABB()
+        local pos = ent:WorldSpaceCenter()
+        pos.z = vecmax.z
+        pos = pos:ToScreen()
+        local x, y = pos.x, pos.y
+        local col_group = ent:GetCollisionGroup()
+        local col2 = HSVToColor(50 + 16 * col_group, 0.5, 1)
+        local bgcol = HSVToColor(50 + 16 * col_group, 1, 0.1)
+        bgcol.a = 220
+        local font = "GModWorldtip"
+        local rad = 8
+        local text = ("%s (%s)"):format(colEnums[col_group], col_group)
+        if trace.Special then text = "#" .. text end
+        surface.SetFont(font)
+        local tw, th = surface.GetTextSize(text)
+        y = y - th
+        draw.RoundedBox(rad, x - tw / 2 - 10, y - th / 2 - 2, tw + 20, th + 4, bgcol)
+        draw.SimpleText(text, font, x, y, col2, 1, 1)
+    end
 end
 
-
 local cvarlist = TOOL:BuildConVarList()
+function TOOL.BuildCPanel(cPanel)
+    local color_blue = Color(50, 100, 200)
+    local color_green = Color(35, 155, 100)
+    local color_gray = Color(240, 240, 240)
+    local function paint(panel, w, h, hcol, bgcol)
+        local topHeight = panel:GetHeaderHeight()
+        local c = not panel:GetExpanded()
+        draw.RoundedBoxEx(4, 0, 0, w, topHeight, hcol, true, true, c, c)
+        draw.RoundedBoxEx(8, 0, topHeight, w, h - topHeight + 5, bgcol, false, false, true, true)
+    end
 
-function TOOL.BuildCPanel( cPanel )
+    cPanel:Help("#tool." .. mode .. ".desc")
+    cPanel:ToolPresets(mode, cvarlist)
+    local cgComboBox, label = cPanel:ComboBox("Collision Group:", mode .. "_col_group")
+    cgComboBox:SetSortItems(false)
+    cgComboBox:Dock(TOP)
+    cgComboBox:DockMargin(0, 20, 0, 0)
+    label:DockMargin(0, 20, 0, 0)
+    for data, value in pairs(colEnums) do
+        cgComboBox:AddChoice(data .. ": " .. value, data)
+    end
 
-	local color_blue = Color( 50, 100, 200 )
-	local color_green = Color( 35, 155, 100 )
-	local color_gray = Color( 240, 240, 240 )
+    cPanel:ControlHelp("The collision group to apply to the entity.\n")
+    cPanel:CheckBox("Remove world no-collide on reload", mode .. "_remove_constr")
+    cPanel:ControlHelp("Remove any no-collide constraint that the entity has with the world on reload.\n")
+    local expForm = vgui.Create("DForm", cPanel)
+    cPanel:AddItem(expForm)
+    expForm:SetExpanded(false)
+    expForm:SetLabel("Experimental")
+    expForm:SetPaintBackground(false)
+    expForm:DockPadding(0, 0, 0, 5)
+    function expForm:Paint(w, h)
+        paint(self, w, h, color_blue, color_gray)
+    end
 
-	local function paint( panel, w, h, hcol, bgcol )
-		local topHeight = panel:GetHeaderHeight()
-		local c = not panel:GetExpanded()
-		draw.RoundedBoxEx( 4, 0, 0, w, topHeight, hcol, true, true, c, c )
-		draw.RoundedBoxEx( 8, 0, topHeight, w, h - topHeight + 5, bgcol, false, false, true, true )
-	end
+    local tcgComboBox = expForm:ComboBox("Trace C. Group:", mode .. "_trace_col_group")
+    tcgComboBox:SetSortItems(false)
+    tcgComboBox:Dock(TOP)
+    for k, group in ipairs({0, 7, 9}) do
+        tcgComboBox:AddChoice(group .. ": " .. colEnums[group], group)
+    end
 
-	cPanel:Help( "#tool." .. mode .. ".desc" )
+    expForm:ControlHelp("\nThe collision group that the tool's trace uses. Useful if the unmodified trace doesn't detect a specific collision group.\n- Group 7 (Vehicle) can hit group 12 (Vehicle Clip)\n- Group 9 (NPC) can hit group 14 (Door Blocker)")
+    local helpForm = vgui.Create("DForm", cPanel)
+    cPanel:AddItem(helpForm)
+    helpForm:SetExpanded(true)
+    helpForm:SetLabel("Help")
+    helpForm:SetPaintBackground(false)
+    helpForm:DockPadding(0, 0, 0, 5)
+    function helpForm:Paint(w, h)
+        paint(self, w, h, color_green, color_gray)
+    end
 
-	cPanel:ToolPresets( mode, cvarlist )
+    local valveButton, fpButton = vgui.Create("DButton", helpForm), vgui.Create("DButton", helpForm)
+    valveButton:SetText("Collision groups (Valve Wiki)")
+    fpButton:SetText("Collision groups (Facepunch Wiki)")
+    valveButton:SetImage("games/16/hl2.png")
+    fpButton:SetImage("games/16/garrysmod.png")
+    function valveButton:DoClick()
+        gui.OpenURL("https://developer.valvesoftware.com/wiki/Collision_groups")
+    end
 
-	local cgComboBox, label = cPanel:ComboBox( "Collision Group:", mode .. "_col_group" )
-		cgComboBox:SetSortItems( false )
-		cgComboBox:Dock( TOP )
-		cgComboBox:DockMargin( 0, 20, 0, 0 )
-		label:DockMargin( 0, 20, 0, 0 )
-		for data, value in pairs( colEnums ) do
-			cgComboBox:AddChoice( data .. ": " .. value, data )
-		end
-		cPanel:ControlHelp( "The collision group to apply to the entity.\n" )
+    function fpButton:DoClick()
+        gui.OpenURL("https://wiki.facepunch.com/gmod/Enums/COLLISION_GROUP")
+    end
 
-	cPanel:CheckBox( "Remove world no-collide on reload", mode .. "_remove_constr" )
-		cPanel:ControlHelp( "Remove any no-collide constraint that the entity has with the world on reload.\n" )
-
-	local expForm = vgui.Create( "DForm", cPanel )
-		cPanel:AddItem( expForm )
-		expForm:SetExpanded( false )
-		expForm:SetLabel( "Experimental" )
-		expForm:SetPaintBackground( false )
-		expForm:DockPadding( 0, 0, 0, 5 )
-		function expForm:Paint(w, h)
-			paint( self, w, h, color_blue, color_gray )
-		end
-
-		local tcgComboBox = expForm:ComboBox( "Trace C. Group:", mode .. "_trace_col_group" )
-			tcgComboBox:SetSortItems( false )
-			tcgComboBox:Dock( TOP )
-			for k, group in ipairs( { 0, 7, 9 } ) do
-				tcgComboBox:AddChoice( group .. ": " .. colEnums[group], group )
-			end
-			expForm:ControlHelp( "\nThe collision group that the tool's trace uses. Useful if the unmodified trace doesn't detect a specific collision group.\n- Group 7 (Vehicle) can hit group 12 (Vehicle Clip)\n- Group 9 (NPC) can hit group 14 (Door Blocker)" )
-
-	local helpForm = vgui.Create( "DForm", cPanel )
-		cPanel:AddItem( helpForm )
-		helpForm:SetExpanded( true )
-		helpForm:SetLabel( "Help" )
-		helpForm:SetPaintBackground( false )
-		helpForm:DockPadding( 0, 0, 0, 5 )
-		function helpForm:Paint(w, h)
-			paint( self, w, h, color_green, color_gray )
-		end
-
-		local valveButton, fpButton = vgui.Create( "DButton", helpForm ), vgui.Create( "DButton", helpForm )
-			valveButton:SetText( "Collision groups (Valve Wiki)" )
-			fpButton:SetText( "Collision groups (Facepunch Wiki)" )
-
-			valveButton:SetImage( "games/16/hl2.png" )
-			fpButton:SetImage( "games/16/garrysmod.png" )
-
-			function valveButton:DoClick() gui.OpenURL( "https://developer.valvesoftware.com/wiki/Collision_groups" ) end
-			function fpButton:DoClick() gui.OpenURL( "https://wiki.facepunch.com/gmod/Enums/COLLISION_GROUP" ) end
-
-			helpForm:AddItem( valveButton )
-			helpForm:AddItem( fpButton )
-
-		local tooltipCheckBox = helpForm:CheckBox( "Enable Tooltips", mode .. "_tooltip_enabled" )
-			tooltipCheckBox:SetTooltip( "Show a tooltip when pointing something with the tool." )
-
-
+    helpForm:AddItem(valveButton)
+    helpForm:AddItem(fpButton)
+    local tooltipCheckBox = helpForm:CheckBox("Enable Tooltips", mode .. "_tooltip_enabled")
+    tooltipCheckBox:SetTooltip("Show a tooltip when pointing something with the tool.")
 end
