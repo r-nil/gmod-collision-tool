@@ -72,25 +72,36 @@ local function getCustomTrace(ply, col_group)
     tr.collisiongroup = col_group or 0
     tr.mins = vector_origin
     tr.maxs = tr.mins
+
     local trace = util.TraceLine(tr)
     if not trace.Hit then trace = util.TraceHull(tr) end
+
     if hacking then return trace end
+
     if trace.Hit then
         local hitent = trace.Entity
+		local old_cgs = {}
         local LAEnt2 = ents.FindAlongRay(trace.StartPos, trace.HitPos)
         for _, LAEnt in ipairs(LAEnt2) do
             if LAEnt == hitent then continue end
             local class = LAEnt:GetClass()
             if LAEnt:IsWeapon() or LAEnt:IsPlayer() or class == "viewmodel" then continue end
             local col = LAEnt:GetCollisionGroup()
+			old_cgs[LAEnt] = col
             LAEnt:SetCollisionGroup(0)
-            hacking = true
-            trace = getCustomTrace(ply, col_group)
-            if LAEnt ~= hitent then trace.Special = true end
-            hacking = false
-            LAEnt:SetCollisionGroup(col)
         end
+
+		hacking = true
+		trace = getCustomTrace(ply, col_group)
+		if LAEnt ~= hitent then trace.Special = true end
+		hacking = false
+
+		for LAEnt, old in ipairs(old_cgs) do
+			if not IsValid(LAEnt) then continue end -- if someone decides to do Remove inside SetCollisionGroup we might get an error so this stops it (does anyone actually call Remove inside SetCollisionGroup? that's stupid)
+            LAEnt:SetCollisionGroup(old)
+		end
     end
+
     return trace
 end
 
